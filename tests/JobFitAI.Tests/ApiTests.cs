@@ -116,6 +116,24 @@ public sealed class ApiTests
     }
 
     [TestMethod]
+    public async Task Fake_forwarded_ip_cannot_dodge_the_rate_limit()
+    {
+        await using var app = new JobFitAppFactory();
+        using var client = app.CreateClient();
+
+        // An attacker sends a different fake IP with every request.
+        HttpResponseMessage? last = null;
+        for (var i = 1; i <= 6; i++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/analyse") { Content = JsonContent.Create(ValidBody) };
+            request.Headers.Add("X-Forwarded-For", $"10.0.0.{i}");
+            last = await client.SendAsync(request);
+        }
+
+        Assert.AreEqual(HttpStatusCode.TooManyRequests, last!.StatusCode);
+    }
+
+    [TestMethod]
     public async Task Rate_limit_does_not_block_the_health_check()
     {
         await using var app = new JobFitAppFactory();
@@ -138,6 +156,7 @@ public sealed class ApiTests
 
         foreach (var header in new[] { "Content-Security-Policy", "X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy" })
             Assert.IsTrue(response.Headers.Contains(header), $"Missing header: {header}");
+        Assert.IsFalse(response.Headers.Contains("Server"), "Server header should be hidden");
         Assert.IsTrue(response.Headers.GetValues("Content-Security-Policy").Single().Contains("frame-ancestors 'none'"));
     }
 }

@@ -12,17 +12,22 @@ public static class RateLimitingSetup
 {
     public const string AnalysePath = "/api/analyse";
 
-    public static IServiceCollection AddAnalysisRateLimits(this IServiceCollection services, RateLimitOptions limits)
+    public static IServiceCollection AddAnalysisRateLimits(this IServiceCollection services, RateLimitOptions limits, bool behindProxy)
     {
         // Behind a hosting platform's proxy, the visitor's real IP arrives in X-Forwarded-For.
-        // ForwardLimit = 1 trusts only the value added by the nearest proxy, so visitors can't fake it.
-        services.Configure<ForwardedHeadersOptions>(o =>
+        // Only trust that header when the app really is behind a proxy (Hosting:BehindProxy = true).
+        // Otherwise anyone could send a fake X-Forwarded-For with every request and dodge the per-visitor limit.
+        // ForwardLimit = 1 reads only the address added by the nearest proxy, which visitors can't fake.
+        if (behindProxy)
         {
-            o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            o.ForwardLimit = 1;
-            o.KnownIPNetworks.Clear();
-            o.KnownProxies.Clear();
-        });
+            services.Configure<ForwardedHeadersOptions>(o =>
+            {
+                o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                o.ForwardLimit = 1;
+                o.KnownIPNetworks.Clear();
+                o.KnownProxies.Clear();
+            });
+        }
 
         services.AddRateLimiter(options =>
         {
