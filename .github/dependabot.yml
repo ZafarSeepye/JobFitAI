@@ -1,0 +1,13 @@
+# Dependabot checks weekly for newer, patched versions of the NuGet packages
+# and GitHub Actions this repo uses, and opens a pull request when one is available.
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
