@@ -4,16 +4,110 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JobFit AI</title>
+  <meta name="description" content="Paste a job advert and a CV. JobFit AI tells you honestly how well they match, what's missing, and how to pitch yourself.">
+  <link rel="preload" href="lib/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="lib/fonts/instrument-sans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/app.css">
 </head>
-<body style="font-family:system-ui,sans-serif;background:#E9EDF3;color:#1B2340;padding:40px">
-  <h1>JobFit AI</h1>
-  <p>The project skeleton is running. The real page arrives in Step 2.</p>
-  <p id="health">Checking the API…</p>
-  <script>
-    fetch('/api/health')
-      .then(r => r.json())
-      .then(d => document.getElementById('health').textContent = 'API status: ' + d.status)
-      .catch(() => document.getElementById('health').textContent = 'API status: not reachable');
-  </script>
+<body>
+  <header class="masthead">
+    <div class="wrap masthead-row">
+      <a class="wordmark" href="/" aria-label="JobFit AI home">JobFit<span>AI</span></a>
+      <p class="tagline">Paste a job advert and a CV. Get an honest verdict on the fit.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- THE DESK: two sheets of paper -->
+    <section class="desk" aria-label="Your documents">
+      <div class="sheet sheet-job">
+        <div class="sheet-tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+          <label for="jobAd">Job advert</label>
+        </div>
+        <textarea id="jobAd" maxlength="8000" spellcheck="false"
+          placeholder="Paste the full job advert here: the role, responsibilities and requirements."></textarea>
+        <div class="sheet-foot"><span class="count" data-for="jobAd">0 / 8 000</span></div>
+      </div>
+
+      <div class="sheet sheet-cv">
+        <div class="sheet-tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M16 22a4 4 0 0 0-8 0"/><circle cx="12" cy="15" r="3"/></svg>
+          <label for="cv">CV</label>
+        </div>
+        <textarea id="cv" maxlength="8000" spellcheck="false"
+          placeholder="Paste the CV as plain text: profile, skills, experience, projects and education."></textarea>
+        <div class="sheet-foot"><span class="count" data-for="cv">0 / 8 000</span></div>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button id="analyse" class="btn btn-primary" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></svg>
+        <span class="btn-label">Analyse fit</span>
+      </button>
+      <button id="example" class="btn btn-quiet" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 14h10"/><path d="M16 4h2a2 2 0 0 1 2 2v1.344"/><path d="m17 18 4-4-4-4"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+        Try an example
+      </button>
+      <button id="clear" class="btn btn-quiet" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Clear
+      </button>
+      <p id="formError" class="form-error" role="alert" hidden></p>
+    </div>
+
+    <!-- RESULTS -->
+    <section id="results" class="results" aria-live="polite" hidden>
+      <div class="report">
+        <div class="report-head">
+          <div class="score-block">
+            <div class="score"><span id="scoreNum">0</span><small>/100</small></div>
+            <div class="score-label">Fit score</div>
+          </div>
+          <div class="headline-block">
+            <h2 id="headline"></h2>
+            <p class="preview-note" id="previewNote">Preview data. The live analysis connects in a later step.</p>
+          </div>
+          <div id="stamp" class="stamp" aria-label="Verdict"><span id="stampText"></span></div>
+        </div>
+
+        <div class="columns">
+          <div class="col">
+            <h3><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>Where you match</h3>
+            <ul id="matches" class="marks"></ul>
+          </div>
+          <div class="col">
+            <h3><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Gaps to address</h3>
+            <ul id="gaps" class="marks"></ul>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="summary-head">
+            <h3>Tailored CV summary</h3>
+            <button id="copy" class="btn btn-small" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <p id="summary"></p>
+        </div>
+
+        <div class="tips">
+          <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>Before you apply</h3>
+          <ol id="tips"></ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>Built by <a href="https://zafarseepye.github.io" target="_blank" rel="noopener">Zafar Seepye</a> · Your text is only used for the analysis and is not stored.</p>
+  </footer>
+
+  <script src="lib/gsap/gsap.min.js"></script>
+  <script src="js/sample.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
