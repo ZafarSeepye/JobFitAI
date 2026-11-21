@@ -166,9 +166,14 @@
       const messages = problem?.errors ? Object.values(problem.errors).flat() : [];
       throw new Error(messages.join(" ") || "The server couldn't read that request. Check both boxes and try again.");
     }
-    // 429: too many requests (rate limit, added in Step 6).
+    // 429: daily limit reached. The server explains which limit.
     if (response.status === 429) {
-      throw new Error("You've reached today's limit of analyses. Try again tomorrow.");
+      const problem = await response.json().catch(() => null);
+      throw new Error(problem?.detail || "You've reached today's limit of analyses. Try again tomorrow.");
+    }
+    // 413: the request was bigger than the server accepts.
+    if (response.status === 413) {
+      throw new Error("That's too much text. Keep each document under 8,000 characters.");
     }
     throw new Error("Something went wrong on the server. Try again in a moment.");
   }
