@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JobFit AI</title>
+</head>
+<body style="font-family:system-ui,sans-serif;background:#E9EDF3;color:#1B2340;padding:40px">
+  <h1>JobFit AI</h1>
+  <p>The project skeleton is running. The real page arrives in Step 2.</p>
+  <p id="health">Checking the API…</p>
+  <script>
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(d => document.getElementById('health').textContent = 'API status: ' + d.status)
+      .catch(() => document.getElementById('health').textContent = 'API status: not reachable');
+  </script>
+</body>
+</html>
