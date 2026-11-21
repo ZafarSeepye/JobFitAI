@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>jobfitai-web-3f6c2a1e</UserSecretsId>
   </PropertyGroup>
 
 </Project>

@@ -1,12 +1,13 @@
 // JobFit AI — front-end logic.
-// Step 2: the page, input handling and the animated results report.
-// The "Analyse fit" button shows preview data until the API is connected.
+// Handles the inputs, calls POST /api/analyse and renders the animated report.
 
 (() => {
   "use strict";
 
   const MAX_CHARS = 8000;
   const MIN_CHARS = 200;
+  const API_URL = "/api/analyse";
+  const TIMEOUT_MS = 60000;   // AI analysis can take a while; give up after 60 seconds
   const VERDICT_LABELS = { apply: "APPLY", stretch: "STRETCH", skip: "SKIP" };
 
   const $ = (id) => document.getElementById(id);
@@ -77,9 +78,10 @@
     return li;
   }
 
-  function renderResult(result, { preview = false } = {}) {
+  function renderResult(result) {
     els.headline.textContent = result.headline;
-    els.previewNote.hidden = !preview;
+    // The keyword checker is less thorough than the AI, so say so.
+    els.previewNote.hidden = result.source !== "mock";
 
     els.matches.replaceChildren(...result.matches.map((m) => listItem(m.requirement, m.evidence)));
     els.gaps.replaceChildren(...result.gaps.map((g) => listItem(g.requirement, g.evidence)));
@@ -126,6 +128,51 @@
     els.results.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // ---------- talking to the API ----------
+  let inFlight = null;   // the AbortController of the request in progress, if any
+
+  // Sends both documents to the API and returns the parsed result.
+  // Throws an Error with a message that is safe to show to the user.
+  async function requestAnalysis(jobAd, cv) {
+    inFlight?.abort();                         // never run two analyses at once
+    const controller = new AbortController();
+    inFlight = controller;
+    const timer = setTimeout(() => controller.abort("timeout"), TIMEOUT_MS);
+
+    let response;
+    try {
+      response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ jobAd, cv }),
+        signal: controller.signal
+      });
+    } catch (err) {
+      if (controller.signal.aborted) {
+        if (controller.signal.reason === "timeout") throw new Error("The analysis took too long. Try again in a moment.");
+        throw new DOMException("Cancelled", "AbortError");   // cancelled on purpose (Clear button)
+      }
+      throw new Error("Can't reach the server. Check your connection and try again.");
+    } finally {
+      clearTimeout(timer);
+      if (inFlight === controller) inFlight = null;
+    }
+
+    if (response.ok) return response.json();
+
+    // 400: the server rejected the input. Show its field messages.
+    if (response.status === 400) {
+      const problem = await response.json().catch(() => null);
+      const messages = problem?.errors ? Object.values(problem.errors).flat() : [];
+      throw new Error(messages.join(" ") || "The server couldn't read that request. Check both boxes and try again.");
+    }
+    // 429: too many requests (rate limit, added in Step 6).
+    if (response.status === 429) {
+      throw new Error("You've reached today's limit of analyses. Try again tomorrow.");
+    }
+    throw new Error("Something went wrong on the server. Try again in a moment.");
+  }
+
   // ---------- actions ----------
   els.analyse.addEventListener("click", async () => {
     press(els.analyse);
@@ -133,10 +180,14 @@
     if (error) { showError(error); return; }
     hideError();
     setLoading(true);
-    // Step 2: simulate the wait, then show preview data. Step 4 replaces this with a real API call.
-    await new Promise((r) => setTimeout(r, 900));
-    setLoading(false);
-    renderResult(window.JobFitSample.result, { preview: true });
+    try {
+      const result = await requestAnalysis(els.jobAd.value.trim(), els.cv.value.trim());
+      renderResult(result);
+    } catch (err) {
+      if (err.name !== "AbortError") showError(err.message);
+    } finally {
+      setLoading(false);
+    }
   });
 
   els.example.addEventListener("click", () => {
@@ -150,6 +201,7 @@
 
   els.clear.addEventListener("click", () => {
     press(els.clear);
+    inFlight?.abort();                       // cancel any analysis still running
     els.jobAd.value = ""; els.cv.value = "";
     [els.jobAd, els.cv].forEach(updateCount);
     els.results.hidden = true;
