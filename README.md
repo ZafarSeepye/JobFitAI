@@ -3,7 +3,7 @@
 [![CI](https://github.com/ZafarSeepye/JobFitAI/actions/workflows/ci.yml/badge.svg)](https://github.com/ZafarSeepye/JobFitAI/actions/workflows/ci.yml)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
 ![Claude API](https://img.shields.io/badge/AI-Claude%20API-D97757)
-![Tests](https://img.shields.io/badge/tests-42%20passing-2EA44F)
+![Tests](https://img.shields.io/badge/tests-43%20passing-2EA44F)
 
 Paste a job advert and a CV. JobFit AI gives an honest verdict on how well they match.
 
@@ -14,7 +14,9 @@ Paste a job advert and a CV. JobFit AI gives an honest verdict on how well they 
 
 I built it because I was doing this comparison by hand for every job I applied for.
 
-**Live demo:** coming soon
+**Live demo:** [jobfitai-nbe4.onrender.com](https://jobfitai-nbe4.onrender.com)
+
+It runs on a free server that sleeps when nobody is using it, so the first visit can take about a minute to load.
 
 ## Screenshots
 
@@ -64,7 +66,7 @@ If Claude can't be reached, the app falls back to a simple keyword check, so the
 
 - **The API key never reaches the browser or GitHub.** It's kept in .NET user secrets locally and an environment variable in production.
 - **Rate limits:** 5 analyses per visitor per day, plus a site-wide daily cap, to protect the API budget
-- **Spoof-proof limits:** forwarded IP headers are only trusted when the app runs behind a known proxy
+- **Spoof-proof limits:** the visitor's IP is only read from headers set by a trusted proxy (Cloudflare on Render), so faking a header can't reset the limit
 - **Request size limit:** anything over 100 KB is rejected before it's read
 - **Server-side validation:** the server re-checks every request, and the score and verdict are always calculated on the server
 - **Prompt-injection defence:** the documents are wrapped in tags and treated as data, and Claude is told to ignore any instructions inside them
@@ -82,6 +84,7 @@ If Claude can't be reached, the app falls back to a simple keyword check, so the
 | Front end | HTML, CSS, JavaScript, GSAP animations |
 | Testing | MSTest, WebApplicationFactory (in-memory API tests) |
 | CI | GitHub Actions (build and test on every push), Dependabot |
+| Hosting | Docker, Render (free tier) |
 
 ## Project structure
 
@@ -92,9 +95,10 @@ JobFitAI/
 │   ├── Models/                 Request and result shapes, verdict rules
 │   ├── Validation/             Server-side input checks
 │   ├── Services/               Claude analyser, keyword fallback, prompt and schema
-│   ├── Security/               Rate limits and security headers
+│   ├── Security/               Rate limits, security headers and visitor IP
 │   └── wwwroot/                The web page, styles, scripts and privacy page
-├── tests/JobFitAI.Tests/       42 unit and integration tests
+├── tests/JobFitAI.Tests/       43 unit and integration tests
+├── Dockerfile                  Container build used for hosting
 └── .github/                    CI workflow and Dependabot
 ```
 
@@ -126,7 +130,7 @@ From the root folder:
 dotnet test
 ```
 
-- **42 tests** cover the input rules, the verdict boundaries, the keyword check, reading Claude's reply, the fallback, and the full API (validation, rate limits and security headers).
+- **43 tests** cover the input rules, the verdict boundaries, the keyword check, reading Claude's reply, the fallback, and the full API (validation, rate limits and security headers).
 - Claude is replaced by a fake in the tests, so they're free, fast and work offline. They never use a real API key.
 
 ## Configuration
@@ -139,7 +143,16 @@ Settings live in `src/JobFitAI.Web/appsettings.json`. The API key is never store
 | `Claude:Effort` | `medium` | How much reasoning Claude uses (affects cost and speed) |
 | `RateLimits:PerVisitorPerDay` | `5` | Analyses each visitor can run per day |
 | `RateLimits:GlobalPerDay` | `30` | Analyses the whole site can run per day |
-| `Hosting:BehindProxy` | `false` | Set to `true` only when hosted behind a trusted proxy |
+| `Hosting:BehindProxy` | `false` | Set to `true` only when hosted behind a trusted proxy that sets `X-Forwarded-For` |
+| `Hosting:ClientIpHeaders` | empty | Headers to read the visitor's IP from, such as `True-Client-IP,CF-Connecting-IP` on Render. Leave empty unless a trusted proxy sets them |
+
+## Hosting
+
+The live demo runs on Render's free tier from the `Dockerfile`:
+
+- A multi-stage build: the .NET SDK image builds the app, and a smaller runtime image runs it as a non-root user
+- The Claude API key is stored as an environment variable on Render, never in the repo
+- Render redeploys automatically on every push to `main`
 
 ## Design decisions
 
