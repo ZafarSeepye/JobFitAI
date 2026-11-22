@@ -38,7 +38,9 @@ else
 
 // ----- Protection -----
 var limits = builder.Configuration.GetSection(RateLimitOptions.Section).Get<RateLimitOptions>() ?? new RateLimitOptions();
-var behindProxy = builder.Configuration.GetValue<bool>("Hosting:BehindProxy");   // true only on the hosting platform
+var behindProxy = builder.Configuration.GetValue<bool>("Hosting:BehindProxy");   // true only behind a standard proxy
+// On Render (behind Cloudflare), the visitor's IP comes from Cloudflare's own headers instead.
+var clientIpHeaders = ClientIpSetup.ParseHeaderList(builder.Configuration["Hosting:ClientIpHeaders"]);
 builder.Services.AddAnalysisRateLimits(limits, behindProxy);
 
 // Errors use the standard "problem details" JSON format (RFC 9457), without internal details in production.
@@ -52,6 +54,8 @@ if (!claude.HasApiKey)
 // Order matters: each middleware runs in turn for every request.
 if (behindProxy)
     app.UseForwardedHeaders();                // real visitor IP and scheme, only when behind a trusted proxy
+if (clientIpHeaders.Length > 0)
+    app.UseClientIpFromHeaders(clientIpHeaders);   // real visitor IP from Cloudflare's headers (Render)
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler();                // unexpected errors → generic 500, no stack traces
@@ -78,7 +82,14 @@ app.MapGet("/api/health", () => Results.Ok(new
 // to confirm the rate limit identifies each visitor correctly behind the host's proxy.
 // Only exists while Hosting:ShowClientIp is true; switched off again straight after the check.
 if (builder.Configuration.GetValue<bool>("Hosting:ShowClientIp"))
-    app.MapGet("/api/whoami", (HttpContext ctx) => Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
+    app.MapGet("/api/whoami", (HttpContext ctx) => Results.Ok(new
+    {
+        ip = ctx.Connection.RemoteIpAddress?.ToString(),                       // the IP the rate limit uses
+        connection = ctx.Items[ClientIpSetup.OriginalRemoteIpKey] as string,   // the address before any header was applied
+        xForwardedFor = ctx.Request.Headers["X-Forwarded-For"].ToString(),
+        cfConnectingIp = ctx.Request.Headers["CF-Connecting-IP"].ToString(),
+        trueClientIp = ctx.Request.Headers["True-Client-IP"].ToString()
+    }));
 
 // Analyse a job advert against a CV.
 // 200 OK + FitResult when valid; 400 Bad Request + field errors when not; 429 when over the daily limit.

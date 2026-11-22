@@ -134,6 +134,25 @@ public sealed class ApiTests
     }
 
     [TestMethod]
+    public async Task Fake_cloudflare_header_cannot_dodge_the_rate_limit_when_not_enabled()
+    {
+        await using var app = new JobFitAppFactory();
+        using var client = app.CreateClient();
+
+        // Cloudflare's headers are only trusted when Hosting:ClientIpHeaders is set (on Render).
+        HttpResponseMessage? last = null;
+        for (var i = 1; i <= 6; i++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/analyse") { Content = JsonContent.Create(ValidBody) };
+            request.Headers.Add("CF-Connecting-IP", $"10.0.0.{i}");
+            request.Headers.Add("True-Client-IP", $"10.0.1.{i}");
+            last = await client.SendAsync(request);
+        }
+
+        Assert.AreEqual(HttpStatusCode.TooManyRequests, last!.StatusCode);
+    }
+
+    [TestMethod]
     public async Task Rate_limit_does_not_block_the_health_check()
     {
         await using var app = new JobFitAppFactory();
