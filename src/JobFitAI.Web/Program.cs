@@ -74,6 +74,12 @@ app.MapGet("/api/health", () => Results.Ok(new
     time = DateTime.UtcNow
 }));
 
+// Temporary check used once after deployment: shows the IP address the server sees for YOU,
+// to confirm the rate limit identifies each visitor correctly behind the host's proxy.
+// Only exists while Hosting:ShowClientIp is true; switched off again straight after the check.
+if (builder.Configuration.GetValue<bool>("Hosting:ShowClientIp"))
+    app.MapGet("/api/whoami", (HttpContext ctx) => Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
+
 // Analyse a job advert against a CV.
 // 200 OK + FitResult when valid; 400 Bad Request + field errors when not; 429 when over the daily limit.
 app.MapPost(RateLimitingSetup.AnalysePath, async (AnalyseRequest? request, IFitAnalyser analyser, CancellationToken ct) =>

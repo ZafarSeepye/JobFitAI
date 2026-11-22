@@ -1,0 +1,14 @@
+# Only the src folder is needed to build the image. Keep everything else out:
+# smaller uploads, faster builds, and no local secrets or build output inside the image.
+**/bin/
+**/obj/
+.git/
+.github/
+.vs/
+.vscode/
+docs/
+tests/
+*.md
+**/*.user
+**/secrets.json
+**/.env
